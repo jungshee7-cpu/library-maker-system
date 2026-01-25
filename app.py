@@ -1,77 +1,79 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import plotly.express as px
-from datetime import datetime
 
-st.set_page_config(page_title="도서관 메이커스페이스 통합 관리 시스템", layout="wide")
+# 1. 페이지 설정
+st.set_page_config(page_title="구리시 도서관 메이커스페이스 실적 관리", layout="wide")
 
-# 구글 스프레드시트 연결
+st.title("📘 메이커스페이스 실적 관리 시스템")
+st.markdown("---")
+
+# 2. 구글 시트 연결
 conn = st.connection("gsheets", type=GSheetsConnection)
-#df = conn.read(worksheet="maker_data_sheets", ttl=0)
-df = conn.read(ttl=0)
 
-# 누적인원 재계산 함수
-def recalculate_cumulative(dataframe):
-    if dataframe.empty: return dataframe
-    dataframe = dataframe.reset_index(drop=True)
-    dataframe['누적인원'] = dataframe['금회합계'].cumsum()
-    return dataframe
+# 데이터 불러오기
+try:
+    # 주소에서 직접 읽어오되 시트 이름을 명시적으로 지정
+    df = conn.read(worksheet="maker_data_sheets", ttl=0)
+    if df.empty:
+        df = pd.DataFrame(columns=['년도', '구분(탭)', '하위분류', '대상', '강좌/행사명', '월', '금회합계', '누적인원'])
+except Exception as e:
+    st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
+    df = pd.DataFrame(columns=['년도', '구분(탭)', '하위분류', '대상', '강좌/행사명', '월', '금회합계', '누적인원'])
 
-st.title("🏛️ 메이커스페이스 연도별 실적 관리 시스템")
-
-# --- [사이드바: 입력창에 년도 추가] ---
-with st.sidebar:
-    st.header("📝 실적 등록")
+# 3. 사이드바: 실적 입력 창 (세부 분류 항목 강화)
+st.sidebar.header("➕ 새로운 실적 입력")
+with st.sidebar.form("input_form"):
+    year = st.selectbox("년도", ["2026", "2025"])
+    category = st.selectbox("구분(탭)", ["자체", "협력", "장비운영"])
     
-    with st.expander("➕ 데이터 입력", expanded=True):
-        # [추가] 년도 선택 (현재 연도 기준 전후 선택 가능)
-        current_year = datetime.now().year
-        selected_year = st.selectbox("운영 년도 *", [current_year - 1, current_year, current_year + 1], index=1)
-        
-        main_cat = st.selectbox("구분 *", ["선택하세요", "외부", "자체", "기관", "공모", "기타"])
-        
-        # (중략: 하위분류 및 학교명 입력 로직...)
-        sub_cat = st.text_input("세부 분류 *")
-        program_name = st.text_input("강좌/행사명 *")
-        month = st.slider("운영 월", 1, 12, 1)
-        
-        # [데이터 저장 로직 수정]
-        if st.button("🚀 실적 저장"):
-            if main_cat != "선택하세요" and program_name:
-                # 인원 합산 등 기존 로직 수행...
-                new_row = pd.DataFrame([{
-                    '년도': f"{selected_year}년", # 연도 필드 추가
-                    '구분(탭)': main_cat, '하위분류': sub_cat,
-                    '대상': "청소년", '강좌/행사명': program_name, '월': f"{month}월",
-                    '금회합계': 10, '누적인원': 0 
-                }])
-                df = pd.concat([df, new_row], ignore_index=True)
-                df = recalculate_cumulative(df)
-                conn.update(worksheet="maker_data_sheets", data=df)
-                st.success(f"{selected_year}년 실적이 저장되었습니다.")
-                st.rerun()
+    # 세부 분류를 선택형으로 변경하여 명확하게 표출
+    sub_category = st.selectbox("세부 분류(하위분류)", ["장비활용", "메이커교육", "창작활동", "체험행사", "기타"])
+    
+    target = st.selectbox("대상", ["어린이", "청소년", "성인", "가족", "장애인", "기타"])
+    program_name = st.text_input("강좌/행사명 (필수)")
+    month = st.selectbox("월", [f"{i}월" for i in range(1, 13)])
+    count = st.number_input("금회합계 (명)", min_value=0, step=1)
+    
+    submit_button = st.form_submit_button(label="🚀 실적 저장")
 
-# --- [메인 화면: 연도 포함 다중 필터] ---
-st.subheader("🔍 연도별 다중 분석 필터")
+# 4. 데이터 저장 로직
+if submit_button:
+    if program_name:
+        new_data = pd.DataFrame([{
+            "년도": year,
+            "구분(탭)": category,
+            "하위분류": sub_category,
+            "대상": target,
+            "강좌/행사명": program_name,
+            "월": month,
+            "금회합계": count,
+            "누적인원": count 
+        }])
+        
+        updated_df = pd.concat([df, new_data], ignore_index=True)
+        conn.update(worksheet="maker_data_sheets", data=updated_df)
+        
+        st.sidebar.success("✅ 실적이 성공적으로 저장되었습니다!")
+        st.rerun()
+    else:
+        st.sidebar.error("⚠️ 강좌명은 필수 입력 사항입니다.")
 
+# 5. 메인 화면: 실적 현황 및 세부 분류별 보기
 if not df.empty:
-    # 연도 필터 추가를 위해 5개 컬럼으로 확장
-    f0, f1, f2, f3, f4 = st.columns(5)
-    
-    with f0:
-        # [추가] 년도 다중 선택 필터
-        options_year = sorted(df['년도'].unique())
-        c1, c2 = st.columns(2)
-        if c1.button("전체 선택", key="y_all"): st.session_state.s_year = options_year
-        if c2.button("전체 해제", key="y_none"): st.session_state.s_year = []
-        sel_year = st.multiselect("📅 년도", options=options_year, key="s_year", default=options_year)
+    # 상단 요약 지표
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("총 프로그램 수", len(df))
+    with col2:
+        st.metric("총 참여 인원", int(df["금회합계"].sum()))
+    with col3:
+        # 가장 활발한 세부 분류 표시
+        top_sub = df['하위분류'].value_counts().idxmax() if '하위분류' in df.columns else "-"
+        st.metric("주요 세부 분류", top_sub)
 
-    # (중략: 기존 월, 구분, 대상, 강좌명 필터 로직...)
-    # ... 필터링 코드에 sel_year 조건 추가 ...
-    filtered_df = df[df['년도'].isin(sel_year)] # 연도 필터 적용
-
-
-    st.dataframe(filtered_df, use_container_width=True)
-
-
+    st.markdown("---")
+    st.subheader("📊 실적 상세 내역")
+    st.dataframe(df, use_container_width=True)
+else:
+    st.info("현재 등록된 실적이 없습니다. 왼쪽 사이드바에서 데이터를 입력해 주세요.")
