@@ -48,7 +48,7 @@ with st.sidebar:
                 }])
                 df = pd.concat([df, new_row], ignore_index=True)
                 df = recalculate_cumulative(df)
-                conn.update(worksheet="Sheet1", data=df)
+                conn.update(worksheet="maker_data_sheets", data=df)
                 st.success(f"{selected_year}년 실적이 저장되었습니다.")
                 st.rerun()
 
@@ -73,4 +73,5 @@ if not df.empty:
 
 
     st.dataframe(filtered_df, use_container_width=True)
+
 
