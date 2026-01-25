@@ -8,7 +8,8 @@ st.set_page_config(page_title="도서관 메이커스페이스 통합 관리 시
 
 # 구글 스프레드시트 연결
 conn = st.connection("gsheets", type=GSheetsConnection)
-df = conn.read(worksheet="maker_data_sheets", ttl=0)
+#df = conn.read(worksheet="maker_data_sheets", ttl=0)
+df = conn.read(ttl=0)
 
 # 누적인원 재계산 함수
 def recalculate_cumulative(dataframe):
@@ -72,3 +73,4 @@ if not df.empty:
 
 
     st.dataframe(filtered_df, use_container_width=True)
+
