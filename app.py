@@ -8,7 +8,7 @@ st.set_page_config(page_title="도서관 메이커스페이스 통합 관리 시
 
 # 구글 스프레드시트 연결
 conn = st.connection("gsheets", type=GSheetsConnection)
-df = conn.read(worksheet="Sheet1", ttl=0)
+df = conn.read(worksheet="maker_data_sheets", ttl=0)
 
 # 누적인원 재계산 함수
 def recalculate_cumulative(dataframe):
@@ -69,5 +69,6 @@ if not df.empty:
     # (중략: 기존 월, 구분, 대상, 강좌명 필터 로직...)
     # ... 필터링 코드에 sel_year 조건 추가 ...
     filtered_df = df[df['년도'].isin(sel_year)] # 연도 필터 적용
+
 
     st.dataframe(filtered_df, use_container_width=True)
